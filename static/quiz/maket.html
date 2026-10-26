@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Макет — живой квиз</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Figtree:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    body { margin: 0; background: #140a1c; color: #f6f1e7; font-family: Figtree, sans-serif; }
+    main { width: min(1100px, calc(100% - 1.5rem)); margin: 0 auto; padding: 1.4rem 0 2.5rem; }
+    a { color: #ffc857; }
+    h1 { font-family: "Bricolage Grotesque", sans-serif; font-size: clamp(2rem, 5vw, 3.4rem); letter-spacing: -0.04em; margin: 0.2rem 0; }
+    .lead { color: #cbb8d4; max-width: 40rem; }
+    .frames { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; margin-top: 1.2rem; }
+    .frame { border: 1px solid rgba(246,241,231,.16); border-radius: 24px; padding: 0.9rem; background: rgba(246,241,231,.05); }
+    .frame p { margin: 0; color: #ffc857; font-size: 0.75rem; letter-spacing: 0.14em; text-transform: uppercase; }
+    .frame h2 { font-family: "Bricolage Grotesque", sans-serif; font-size: 1.45rem; margin: 0.35rem 0 0.6rem; }
+    .pin { font-family: "Bricolage Grotesque", sans-serif; font-size: 2rem; letter-spacing: 0.14em; }
+    .tile, .row { border-radius: 14px; padding: 0.65rem 0.75rem; margin-top: 0.4rem; background: rgba(0,0,0,.22); }
+    .hot { background: #ff5a36; color: #1a0b08; font-weight: 700; }
+    .ok { background: #d6ff4a; color: #172000; font-weight: 700; }
+    @media (max-width: 800px) { .frames { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/quiz/">← К живому квизу</a>
+    <h1>Макет зала</h1>
+    <p class="lead">Три экрана одной комнаты: кабинет, вопрос с таймером и итог. Рабочий продукт повторяет этот порядок, а не отдельный чат.</p>
+    <div class="frames">
+      <article class="frame">
+        <p>01 · кабинет</p>
+        <h2>Войти и собрать квиз</h2>
+        <div class="row">Почта и пароль</div>
+        <div class="row">Я организую</div>
+        <div class="row">Я участвую</div>
+        <div class="tile hot">Создать кабинет</div>
+      </article>
+      <article class="frame">
+        <p>02 · вопрос</p>
+        <h2>Код и время</h2>
+        <div class="pin">7 K 4 Q</div>
+        <div class="row">Картинка вопроса</div>
+        <div class="tile">А · WebSocket</div>
+        <div class="tile hot">Б · Код комнаты</div>
+        <div class="row">20 секунд · ответить, пока вопрос на экране</div>
+      </article>
+      <article class="frame">
+        <p>03 · табло</p>
+        <h2>Победитель</h2>
+        <div class="tile ok">Катя · 150</div>
+        <div class="row">Илья · 100</div>
+        <div class="row">История остаётся в кабинете</div>
+      </article>
+    </div>
+  </main>
+</body>
+</html>

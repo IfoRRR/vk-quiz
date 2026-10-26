@@ -1,0 +1,4 @@
+/quiz-server
+/data/
+*.json
+!package.json

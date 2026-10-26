@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#140a1c" />
+  <title>Живой квиз — кейс VK</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,520;12..96,700;12..96,800&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=4" />
+</head>
+<body class="arena">
+  <main id="app">
+    <header class="topbar">
+      <a class="back" href="/#cases">← Кейс VK</a>
+      <span class="brand">Зал</span>
+      <span class="air-side">
+        <button v-if="user" class="text-btn" @click="logout()">{{ user.name }}</button>
+        <span class="air" :class="{ on: connected }">{{ connected ? 'В эфире' : status }}</span>
+      </span>
+    </header>
+    <p v-if="error" class="error" role="alert">{{ error }}</p>
+
+    <section v-if="view === 'gate'" class="hero">
+      <p class="eyebrow">просмотр</p>
+      <h1>Зал можно открыть сразу.</h1>
+      <p class="deck">Демо без почты и пароля: вопрос, картинка, несколько ответов, таймер и табло. Отвечать можно на этом же экране.</p>
+      <div class="hero-actions">
+        <button class="btn hot" @click="preview" :disabled="busy">Посмотреть демо</button>
+      </div>
+      <p class="eyebrow or">или кабинет</p>
+      <div class="row">
+        <button class="btn" :class="authMode === 'login' ? 'hot' : 'ghost'" @click="authMode = 'login'">Войти</button>
+        <button class="btn" :class="authMode === 'register' ? 'hot' : 'ghost'" @click="authMode = 'register'">Регистрация</button>
+      </div>
+      <form class="sheet auth" @submit.prevent="submitAuth">
+        <label v-if="authMode === 'register'" class="field">
+          <span>Имя на табло</span>
+          <input v-model="form.name" maxlength="24" autocomplete="nickname" placeholder="Как вас представить" />
+        </label>
+        <label class="field">
+          <span>Почта</span>
+          <input v-model="form.email" type="email" maxlength="80" autocomplete="username" placeholder="you@example.com" />
+        </label>
+        <label class="field">
+          <span>Пароль</span>
+          <input v-model="form.password" type="password" maxlength="72" autocomplete="current-password" placeholder="Не короче 6 символов" />
+        </label>
+        <div v-if="authMode === 'register'" class="roles">
+          <label><input type="radio" value="organizer" v-model="form.role" /> Я организую</label>
+          <label><input type="radio" value="player" v-model="form.role" /> Я участвую</label>
+        </div>
+        <button class="btn hot" type="submit" :disabled="busy">{{ authMode === 'login' ? 'Войти в кабинет' : 'Создать кабинет' }}</button>
+      </form>
+      <p class="docs"><a href="maket.html">Макет</a></p>
+    </section>
+
+    <section v-else-if="view === 'home'" class="hero">
+      <p class="eyebrow">кабинет · {{ roleLabel }}</p>
+      <h1>{{ user.name }}, зал помнит ваши квизы.</h1>
+      <p class="deck">Новый раунд сохраняется в кабинет. После табло здесь остаётся, кто вёл, кто отвечал и какое место занял.</p>
+      <div class="hero-actions">
+        <button v-if="user.role === 'organizer'" class="btn hot" @click="freshQuiz">Новый квиз</button>
+        <button class="btn ghost" @click="view = 'join'">Войти по коду</button>
+      </div>
+      <div v-if="savedHost && user.role === 'organizer'" class="resume">
+        <button class="btn ghost" @click="resumeHost">Вернуться в комнату {{ savedHost.code }}</button>
+      </div>
+
+      <div v-if="user.role === 'organizer'" class="stack">
+        <h2>Собранные квизы</h2>
+        <p v-if="!cabinet.quizzes.length" class="empty">Пока пусто. Соберите первый раунд.</p>
+        <article v-for="quiz in cabinet.quizzes" :key="quiz.id" class="record">
+          <div>
+            <strong>{{ quiz.title }}</strong>
+            <span>{{ quiz.category }} · {{ quiz.seconds ? quiz.seconds + ' с' : 'без таймера' }} · {{ quiz.questions.length }} вопр.</span>
+          </div>
+          <button class="btn hot" @click="openSaved(quiz.id)">В эфир</button>
+        </article>
+      </div>
+
+      <div v-if="user.role === 'organizer'" class="stack">
+        <h2>Я провёл</h2>
+        <p v-if="!cabinet.hosted.length" class="empty">Проведённых квизов ещё нет.</p>
+        <article v-for="play in cabinet.hosted" :key="play.id" class="record">
+          <div>
+            <strong>{{ play.title }}</strong>
+            <span>{{ play.code }} · {{ when(play.when) }}<template v-if="play.rows && play.rows[0]"> · победитель {{ play.rows[0].name }}</template></span>
+          </div>
+        </article>
+      </div>
+
+      <div class="stack">
+        <h2>Я участвовал</h2>
+        <p v-if="!cabinet.played.length" class="empty">История участия появится после первого табло.</p>
+        <article v-for="play in cabinet.played" :key="'p' + play.id" class="record">
+          <div>
+            <strong>{{ play.title }}</strong>
+            <span>{{ when(play.when) }}<template v-for="row in play.rows" :key="row.name"><template v-if="row.userId === user.id"> · {{ row.place }} место · {{ row.score }}</template></template></span>
+          </div>
+        </article>
+      </div>
+      <p class="docs"><a href="maket.html">Макет</a></p>
+    </section>
+
+    <section v-else-if="view === 'build'" class="sheet">
+      <div class="sheet-head">
+        <p class="eyebrow">настройка</p>
+        <h1>Соберите раунд</h1>
+      </div>
+      <label class="field">
+        <span>Название</span>
+        <input v-model="title" maxlength="60" placeholder="Квиз на мероприятии" />
+      </label>
+      <div class="split">
+        <label class="field">
+          <span>Категория</span>
+          <select v-model="category">
+            <option>Общее</option>
+            <option>IT</option>
+            <option>Маркетинг</option>
+            <option>Кино</option>
+            <option>Наука</option>
+            <option>Своя</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Время на вопрос</span>
+          <select v-model.number="seconds">
+            <option :value="0">Без таймера</option>
+            <option :value="10">10 секунд</option>
+            <option :value="15">15 секунд</option>
+            <option :value="20">20 секунд</option>
+            <option :value="30">30 секунд</option>
+            <option :value="45">45 секунд</option>
+            <option :value="60">60 секунд</option>
+          </select>
+        </label>
+      </div>
+      <label v-if="category === 'Своя'" class="field">
+        <span>Своя категория</span>
+        <input v-model="customCategory" maxlength="40" placeholder="Например, продукт VK" />
+      </label>
+      <label class="field">
+        <span>Правила для зала</span>
+        <textarea v-model="rules" maxlength="240" rows="2"></textarea>
+      </label>
+      <div class="row">
+        <button class="btn ghost" @click="fillDemo">Демо-раунд</button>
+        <button class="btn ghost" @click="addQuestion">Ещё вопрос</button>
+      </div>
+
+      <article v-for="(question, qi) in draft" :key="qi" class="cue">
+        <header>
+          <span>Вопрос {{ qi + 1 }}</span>
+          <button v-if="draft.length > 1" class="text-btn" @click="draft.splice(qi, 1)">Убрать</button>
+        </header>
+        <textarea v-model="question.text" maxlength="180" rows="2" placeholder="Что спросить у зала?"></textarea>
+        <label class="check">
+          <input type="checkbox" v-model="question.multi" />
+          Несколько верных ответов
+        </label>
+        <label class="field">
+          <span>Картинка</span>
+          <input v-model="question.image" maxlength="300" placeholder="/quiz/mark.svg" />
+        </label>
+        <label class="file">
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" @change="readImage(question, $event)" />
+          Или файл до 18 КБ
+        </label>
+        <img v-if="question.image" class="shot preview" :src="picture(question.image)" alt="" />
+        <div v-for="(option, oi) in question.options" :key="oi" class="opt">
+          <input v-if="!question.multi" type="radio" :name="'correct-' + qi" :value="oi" v-model.number="question.correct" :aria-label="'Верный вариант ' + letter(oi)" />
+          <input v-else type="checkbox" :checked="question.answers.includes(oi)" @change="toggleAnswer(question, oi)" :aria-label="'Верный вариант ' + letter(oi)" />
+          <input v-model="question.options[oi]" maxlength="60" :placeholder="'Вариант ' + letter(oi)" />
+        </div>
+        <div class="row">
+          <button class="btn ghost" @click="addOption(question)" :disabled="question.options.length >= 4">Ещё вариант</button>
+          <button class="btn ghost" @click="removeOption(question)" :disabled="question.options.length <= 2">Меньше</button>
+        </div>
+      </article>
+
+      <div class="row">
+        <button class="btn hot" @click="createRoom">Открыть зал</button>
+        <button class="btn ghost" @click="view = 'home'">Назад</button>
+      </div>
+    </section>
+
+    <section v-else-if="view === 'join'" class="sheet join">
+      <p class="eyebrow">вход в зал</p>
+      <h1>Код с экрана ведущего</h1>
+      <p v-if="user" class="deck">На табло будет имя из кабинета: {{ user.name }}.</p>
+      <p v-else class="deck">Имя на табло, без регистрации.</p>
+      <label class="field">
+        <span>Код</span>
+        <input v-model="joinCode" class="pin-input" maxlength="4" autocapitalize="characters" placeholder="AB12" @keyup.enter="joinRoom" />
+      </label>
+      <label v-if="!user" class="field">
+        <span>Имя</span>
+        <input v-model="joinName" maxlength="24" placeholder="Как вас представить" @keyup.enter="joinRoom" />
+      </label>
+      <div class="row">
+        <button class="btn hot" @click="joinRoom">Занять место</button>
+        <button class="btn ghost" @click="view = user ? 'home' : 'gate'">Назад</button>
+      </div>
+    </section>
+
+    <section v-else-if="state" class="show">
+      <div class="play">
+        <div class="play-top">
+          <p class="eyebrow">{{ state.title }} · {{ phaseLabel }}<template v-if="state.category"> · {{ state.category }}</template></p>
+          <p v-if="state.role === 'host'" class="role">ведущий</p>
+          <p v-else-if="state.role === 'player'" class="role">участник</p>
+          <p v-else class="role">экран зала</p>
+        </div>
+
+        <div class="pin-row">
+          <p class="pin">{{ spaced(state.code) }}</p>
+          <p v-if="state.timed && state.phase === 'question'" class="timer" :class="{ danger: left <= 5 }">{{ left }}</p>
+        </div>
+        <p v-if="state.phase === 'lobby'" class="wait">
+          {{ previewing ? 'Нажмите «Начать вопрос» и отвечайте здесь же.' : (state.role === 'player' ? 'Ведущий ещё не открыл первый вопрос.' : 'Покажите код. Зал заходит по ссылке под ним.') }}
+        </p>
+        <p v-if="state.rules && state.phase === 'lobby'" class="rules">{{ state.rules }}</p>
+
+        <div v-if="state.phase === 'done'" class="winner">
+          <p>Победитель</p>
+          <strong>{{ winnerLine }}</strong>
+        </div>
+
+        <template v-if="state.question">
+          <p class="progress">Вопрос {{ state.question.index + 1 }} <em>из</em> {{ state.question.total }}</p>
+          <h1 class="ask">{{ state.question.text }}</h1>
+          <img v-if="state.question.image" class="shot" :src="state.question.image" alt="" />
+          <p v-if="state.question.multi && state.phase === 'question'" class="wait">Отметьте все верные и нажмите «Ответить».</p>
+          <div class="buzz">
+            <button
+              v-for="(option, index) in state.question.options"
+              :key="index"
+              class="choice"
+              :class="optionClass(index)"
+              :disabled="lockedChoice()"
+              @click="choose(index)"
+            >
+              <span class="letter">{{ letter(index) }}</span>
+              <span class="choice-copy">
+                <span>{{ option }}</span>
+                <span v-if="state.question.counts" class="bar" aria-hidden="true"><span :style="{ width: barWidth(index) }"></span></span>
+              </span>
+              <span v-if="state.question.counts" class="count">{{ state.question.counts[index] }}</span>
+            </button>
+          </div>
+          <button v-if="canSubmitMulti" class="btn hot" @click="submitMulti" :disabled="!picks.length">Ответить</button>
+        </template>
+
+        <p v-if="state.phase === 'question' && state.role === 'player' && state.question && state.question.yourAnswer && state.question.yourAnswer.length" class="locked">Ответ принят. Ждём зал.</p>
+        <p v-if="previewing && you && state.phase !== 'lobby'" class="score-you">
+          Ваши очки <strong>{{ you.score }}</strong><span v-if="you.gain"> +{{ you.gain }}</span>
+        </p>
+        <p v-if="state.you && state.phase !== 'lobby'" class="score-you">
+          Ваши очки <strong>{{ state.you.score }}</strong><span v-if="state.you.gain"> +{{ state.you.gain }}</span>
+        </p>
+
+        <div v-if="state.role === 'host'" class="row">
+          <button v-if="state.phase === 'lobby'" class="btn hot" @click="send({ op: 'start' })">Начать вопрос</button>
+          <button v-if="state.phase === 'question'" class="btn hot" @click="send({ op: 'reveal' })">Открыть ответ</button>
+          <button v-if="state.phase === 'reveal' && !isLast" class="btn hot" @click="send({ op: 'next' })">Следующий</button>
+          <button v-if="state.phase === 'reveal' && isLast" class="btn hot" @click="send({ op: 'next' })">Табло</button>
+          <button v-if="state.phase === 'done'" class="btn hot" @click="send({ op: 'reset' })">Ещё раунд</button>
+          <button class="btn ghost" @click="copyLink">{{ copied ? 'Ссылка у вас' : 'Ссылка залу' }}</button>
+          <a class="btn ghost" :href="screenHref" target="_blank" rel="noopener">Экран зала</a>
+        </div>
+        <p v-if="state.role === 'host'" class="join-url">{{ joinUrl }}</p>
+      </div>
+
+      <aside class="board">
+        <p class="eyebrow">табло · {{ state.totalPlayers }}<span v-if="state.phase === 'question'"> · ответили {{ state.answered }}</span></p>
+        <p v-if="!state.players.length" class="empty">Зал ещё пуст</p>
+        <ol v-else>
+          <li v-for="(player, index) in state.players" :key="player.name + index" :class="{ lead: index === 0 && player.score > 0 }">
+            <span class="place">{{ index + 1 }}</span>
+            <span class="who">{{ player.name }}</span>
+            <span class="pts">
+              <span v-if="player.answered" class="tick">✓</span>
+              <span v-if="player.gain" class="plus">+{{ player.gain }}</span>
+              {{ player.score }}
+            </span>
+          </li>
+        </ol>
+        <button class="btn ghost" @click="leave">Выйти в кабинет</button>
+      </aside>
+    </section>
+  </main>
+
+  <script src="vue.global.prod.js"></script>
+  <script src="app.js?v=6"></script>
+</body>
+</html>
